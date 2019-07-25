@@ -39,7 +39,8 @@ TRELLO_TOKEN=
 # AWS Key and Secret with S3 Read/Write permissions
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
-AWS_S3_BUCKET=
+# AWS S3 Bucket where changelog will be written to
+AWS_CHANGELOG_BUCKET=
 
 TRELLO_BOARD_NAME=
 

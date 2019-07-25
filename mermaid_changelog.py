@@ -17,7 +17,7 @@ def get_list_env_var(key, default=None):
 
 
 TRELLO_BOARD_NAME = os.environ["TRELLO_BOARD_NAME"]
-AWS_S3_BUCKET = os.environ["AWS_S3_BUCKET"]
+AWS_S3_BUCKET = os.environ["AWS_CHANGELOG_BUCKET"]
 APP_LABELS = get_list_env_var("APP_LABELS", "Collect App, API, Summary API")
 BUG_LABELS = get_list_env_var("BUG_LABELS", "Bug, Hotfix")
 CHANGELOG_FILE = os.environ.get("CHANGELOG_FILE") or "changelog.json"
