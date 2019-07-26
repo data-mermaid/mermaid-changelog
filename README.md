@@ -21,8 +21,8 @@ Development environment includes:
 * flake8 for styling and code quality
 
 
-1. `pyenv virtualenv 3.7.1 geotrellis-cli-env`
-2. `pyenv activate geotrellis-cli-env`
+1. `pyenv virtualenv 3.7.1 mermaid-changelog`
+2. `pyenv activate mermaid-changelog`
 3. `git clone https://github.com/data-mermaid/mermaid-changelog.git`
 4. `cd mermaid-changelog`
 5. `pip install --editable .`

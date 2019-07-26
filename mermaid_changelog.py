@@ -70,9 +70,9 @@ def get_card_details(card):
 
 
 def get_cards_by_git_tag(tag):
-    honeycrisp_board = get_board(TRELLO_BOARD_NAME)
+    board = get_board(TRELLO_BOARD_NAME)
     version_list = None
-    for t_list in honeycrisp_board.open_lists():
+    for t_list in board.open_lists():
         if t_list.name == tag:
             version_list = t_list
             break
