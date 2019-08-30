@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 
+import argparse
 import json
 import os
-import sys
+import re
+import tempfile
+from argparse import RawDescriptionHelpFormatter
 
 import boto3
 import botocore
@@ -20,7 +23,10 @@ TRELLO_BOARD_NAME = os.environ["TRELLO_BOARD_NAME"]
 AWS_S3_BUCKET = os.environ["AWS_CHANGELOG_BUCKET"]
 APP_LABELS = get_list_env_var("APP_LABELS", "Collect App, API, Summary API")
 BUG_LABELS = get_list_env_var("BUG_LABELS", "Bug, Hotfix")
+TMPDIR = tempfile.gettempdir() or os.getcwd()
 CHANGELOG_FILE = os.environ.get("CHANGELOG_FILE") or "changelog.json"
+CHANGELOG_PATH = os.path.join(TMPDIR, "{}".format(CHANGELOG_FILE))
+VERSION_PATTERN = re.compile(r"v[0-9]+(\.[0-9]+)+$", re.IGNORECASE)
 
 client = TrelloClient(
     api_key=os.environ["TRELLO_API_KEY"], token=os.environ["TRELLO_TOKEN"]
@@ -83,33 +89,42 @@ def get_cards_by_git_tag(tag):
     return [get_card_details(card) for card in get_cards(version_list)]
 
 
+def get_cards_by_open_releases():
+    board = get_board(TRELLO_BOARD_NAME)
+    version_lists = []
+    for t_list in board.open_lists():
+        if VERSION_PATTERN.match(t_list.name):
+            changes = [get_card_details(card) for card in get_cards(t_list)]
+            version_content = dict(version=t_list.name, changes=changes)
+            version_lists.append(version_content)
+    return sorted(version_lists, key=lambda k: k["version"], reverse=True)
+
+
 def download_changelog_from_s3():
     s3 = boto3.client("s3")
     try:
-        download_path = "/tmp/{}".format(CHANGELOG_FILE)
-        s3.download_file(AWS_S3_BUCKET, CHANGELOG_FILE, download_path)
-        return download_path
+        return s3.download_file(AWS_S3_BUCKET, CHANGELOG_FILE, CHANGELOG_PATH)
     except botocore.exceptions.ClientError as e:
         if int(e.response["Error"]["Code"]) == 404:
             return None
         raise e
 
 
-def upload_changelog_to_s3(local_path):
+def upload_changelog_to_s3():
     s3 = boto3.client("s3")
     return s3.upload_file(
-        local_path,
+        CHANGELOG_PATH,
         AWS_S3_BUCKET,
         CHANGELOG_FILE,
         ExtraArgs={"ContentType": "application/json"},
     )
 
 
-def read_changelog_contents(changelog_path):
-    if changelog_path is None:
+def read_changelog_contents():
+    if CHANGELOG_PATH is None:
         return []
     else:
-        with open(changelog_path, "r") as f:
+        with open(CHANGELOG_PATH, "r") as f:
             return json.loads(f.read())
 
 
@@ -120,8 +135,8 @@ def get_version_index(version, changelog_content):
     return None
 
 
-def update_changelog_file(version, changes, changelog_path):
-    changelog_contents = read_changelog_contents(changelog_path)
+def update_changelog_file(version, changes):
+    changelog_contents = read_changelog_contents()
     new_version_content = dict(version=version, changes=changes)
     version_index = get_version_index(version, changelog_contents)
     if version_index is None:
@@ -129,32 +144,69 @@ def update_changelog_file(version, changes, changelog_path):
     else:
         changelog_contents[version_index] = new_version_content
 
-    with open(changelog_path, "w") as fw:
+    with open(CHANGELOG_PATH, "w") as fw:
         fw.write(json.dumps(changelog_contents))
 
 
 def main():
-    try:
-        version = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        description=u"""
+    Update changelog json file stored in S3 bucket based on open Trello lists with semantic versioning names, 
+    e.g. 'v0.10.0'. If called with a version argument, only the content of that version will be updated in the 
+    changelog; otherwise, all changelog versions matching open version Trello lists will be updated. 
+    """,
+        formatter_class=RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        help=u"Optional version tag to update in the changelog. Leave out to update all versions matching open "
+             u"version Trello lists.",
+    )
+    args = parser.parse_args()
+
+    if args.version:
+        version = args.version
+        if not VERSION_PATTERN.match(version):
+            print("Invalid version '{}'".format(version))
+            exit()
+
         changes = get_cards_by_git_tag(version)
         num_changes = len(changes)
         if num_changes == 0:
             print("No entries to add to changelog.")
             exit()
 
-        changelog_path = download_changelog_from_s3() or "/tmp/{}".format(
-            CHANGELOG_FILE
-        )
-        update_changelog_file(version, changes, changelog_path)
-        upload_changelog_to_s3(changelog_path)
-        os.remove(changelog_path)
+        download_changelog_from_s3()
+        update_changelog_file(version, changes)
+        upload_changelog_to_s3()
+        os.remove(CHANGELOG_PATH)
 
         print("Version '{}' updated with {} changes.".format(version, num_changes))
 
-    except IndexError:
-        print("chlog <VERSION>")
-    except NotFoundError as nfe:
-        print(str(nfe))
+    else:
+        open_releases = get_cards_by_open_releases()
+        num_releases = len(open_releases)
+        if num_releases == 0:
+            print("No open releases to add to changelog.")
+            exit()
+
+        download_changelog_from_s3()
+
+        for release in open_releases:
+            version = release.get("version")
+            changes = release.get("changes")
+            if version and changes:
+                num_changes = len(changes)
+                if num_changes == 0:
+                    print("No entries to add to changelog for version {}.".format(version))
+                    exit()
+                update_changelog_file(version, changes)
+                print("Version '{}' updated with {} changes.".format(version, num_changes))
+
+        upload_changelog_to_s3()
+        os.remove(CHANGELOG_PATH)
+        print("Changelog finished updating and uploaded to S3.")
 
 
 if __name__ == "__main__":
