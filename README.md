@@ -1,5 +1,8 @@
 MERMAID Changelog
 -----------------
+Update changelog json file stored in S3 bucket based on open Trello lists with semantic versioning names, 
+e.g. 'v0.10.0'. If called with a version argument, only the content of that version will be updated in the 
+changelog; otherwise, all changelog versions matching open version Trello lists will be updated. 
 
 
 ## Requirements
@@ -56,6 +59,8 @@ CHANGELOG_FILE=
 ## Usage
 
 
-`chlog <version>`
+`chlog -v <version>` or `chlog --version <version>`: Update specific changelog version from corresponding open Trello
+ list  
+ `chlog`: Update all changelog versions with correponding open Trello lists
 
 Example: `chlog v0.10.3`
