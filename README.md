@@ -61,6 +61,6 @@ CHANGELOG_FILE=
 
 `chlog -v <version>` or `chlog --version <version>`: Update specific changelog version from corresponding open Trello
  list  
- `chlog`: Update all changelog versions with correponding open Trello lists
+ `chlog`: Update all changelog versions with corresponding open Trello lists
 
 Example: `chlog v0.10.3`
