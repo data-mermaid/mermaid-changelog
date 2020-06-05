@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 from argparse import RawDescriptionHelpFormatter
+from datetime import datetime
 
 import boto3
 import botocore
@@ -135,9 +136,11 @@ def get_version_index(version, changelog_content):
     return None
 
 
-def update_changelog_file(version, changes):
+def update_changelog_file(version, release_date, changes):
     changelog_contents = read_changelog_contents()
-    new_version_content = dict(version=version, changes=changes)
+    new_version_content = dict(
+        version=version, release_date=release_date, changes=changes
+    )
     version_index = get_version_index(version, changelog_contents)
     if version_index is None:
         changelog_contents.insert(0, new_version_content)
@@ -146,6 +149,16 @@ def update_changelog_file(version, changes):
 
     with open(CHANGELOG_PATH, "w") as fw:
         fw.write(json.dumps(changelog_contents))
+
+
+def get_date():
+    timestamp = datetime.utcnow()
+    return str(timestamp.date())
+
+def _get_version_release_dates(changelog_path):
+    with open(changelog_path) as f:
+        contents = json.loads(f.read())
+        return {e["version"]: e.get("release_date") for e in contents}
 
 
 def main():
@@ -161,7 +174,7 @@ def main():
         "-v",
         "--version",
         help=u"Optional version tag to update in the changelog. Leave out to update all versions matching open "
-             u"version Trello lists.",
+        u"version Trello lists.",
     )
     args = parser.parse_args()
 
@@ -178,7 +191,9 @@ def main():
             exit()
 
         download_changelog_from_s3()
-        update_changelog_file(version, changes)
+        release_dates = _get_version_release_dates(CHANGELOG_PATH)
+        release_date = release_dates.get("version") or get_date()
+        update_changelog_file(version, release_date, changes)
         upload_changelog_to_s3()
         os.remove(CHANGELOG_PATH)
 
@@ -192,17 +207,22 @@ def main():
             exit()
 
         download_changelog_from_s3()
-
+        release_dates = _get_version_release_dates(CHANGELOG_PATH)
         for release in open_releases:
             version = release.get("version")
             changes = release.get("changes")
+            release_date = release_dates.get("release_date") or get_date()
             if version and changes:
                 num_changes = len(changes)
                 if num_changes == 0:
-                    print("No entries to add to changelog for version {}.".format(version))
+                    print(
+                        "No entries to add to changelog for version {}.".format(version)
+                    )
                     exit()
-                update_changelog_file(version, changes)
-                print("Version '{}' updated with {} changes.".format(version, num_changes))
+                update_changelog_file(version, release_date, changes)
+                print(
+                    "Version '{}' updated with {} changes.".format(version, num_changes)
+                )
 
         upload_changelog_to_s3()
         os.remove(CHANGELOG_PATH)
