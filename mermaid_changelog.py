@@ -192,7 +192,7 @@ def main():
 
         download_changelog_from_s3()
         release_dates = _get_version_release_dates(CHANGELOG_PATH)
-        release_date = release_dates.get("version") or get_date()
+        release_date = release_dates.get("release_date") or get_date()
         update_changelog_file(version, release_date, changes)
         upload_changelog_to_s3()
         os.remove(CHANGELOG_PATH)
