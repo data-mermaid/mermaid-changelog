@@ -155,6 +155,7 @@ def get_date():
     timestamp = datetime.utcnow()
     return str(timestamp.date())
 
+
 def _get_version_release_dates(changelog_path):
     with open(changelog_path) as f:
         contents = json.loads(f.read())
@@ -178,6 +179,9 @@ def main():
     )
     args = parser.parse_args()
 
+    download_changelog_from_s3()
+    release_dates = _get_version_release_dates(CHANGELOG_PATH)
+
     if args.version:
         version = args.version
         if not VERSION_PATTERN.match(version):
@@ -190,9 +194,7 @@ def main():
             print("No entries to add to changelog.")
             exit()
 
-        download_changelog_from_s3()
-        release_dates = _get_version_release_dates(CHANGELOG_PATH)
-        release_date = release_dates.get("release_date") or get_date()
+        release_date = release_dates.get(version) or get_date()
         update_changelog_file(version, release_date, changes)
         upload_changelog_to_s3()
         os.remove(CHANGELOG_PATH)
@@ -206,12 +208,9 @@ def main():
             print("No open releases to add to changelog.")
             exit()
 
-        download_changelog_from_s3()
-        release_dates = _get_version_release_dates(CHANGELOG_PATH)
         for release in open_releases:
             version = release.get("version")
             changes = release.get("changes")
-            release_date = release_dates.get("release_date") or get_date()
             if version and changes:
                 num_changes = len(changes)
                 if num_changes == 0:
@@ -219,6 +218,7 @@ def main():
                         "No entries to add to changelog for version {}.".format(version)
                     )
                     exit()
+                release_date = release_dates.get(version) or get_date()
                 update_changelog_file(version, release_date, changes)
                 print(
                     "Version '{}' updated with {} changes.".format(version, num_changes)
